@@ -7,7 +7,7 @@ namespace Network
     void ProxyServer::CloseConnection(int connectionIndex, std::string reason)
     {
         TCPConnection& connectionSocket = m_connections[connectionIndex];
-        std::cout << "[" << reason << "] Connection lost." << std::endl;
+        //std::cout << "[" << reason << "] Connection lost." << std::endl;
         m_master_fd.erase(m_master_fd.begin() + connectionIndex + 1);
         m_use_fd.erase(m_use_fd.begin() + connectionIndex + 1);
         connectionSocket.Close();
@@ -118,20 +118,13 @@ namespace Network
                     m_connections.emplace_back(TCPConnection(newConnectionSocket, newConnectionEndpoint));
 
                     TCPConnection& acceptedConnection = m_connections[m_connections.size() - 1];
-                    std::cout << "New connection accept." << std::endl;
+                    //std::cout << "New connection accept." << std::endl;
 
                     WSAPOLLFD newConnectionFD = {};
                     newConnectionFD.fd = newConnectionSocket.GetHandle();
                     newConnectionFD.events = POLLRDNORM;
                     newConnectionFD.revents = 0;
                     m_master_fd.push_back(newConnectionFD);
-
-                    /*   const char* forbidden = "HTTP/1.1 403 Forbidden\r\n\r\n<HTML>\r\n<BODY>\r\n<H1>403 Forbidden</H1>\r\n<H2>You don't have permission to access this server</H2>\r\n</BODY></HTML>\r\n";
-
-                       acceptedConnection.m_outgoingBuffer.resize(strlen(forbidden));
-                       memcpy_s(&acceptedConnection.m_outgoingBuffer[0], acceptedConnection.m_outgoingBuffer.size(), forbidden, strlen(forbidden));*/
-                       //send(newConnectionSocket.GetHandle(), forbidden, strlen(forbidden), 0); //Gui ve 403 forbidden
-                       ////puts(forbidden);
                 }
                 else
                 {
@@ -143,7 +136,7 @@ namespace Network
             for (int i = m_use_fd.size() - 1; i >= 1; i--)
             {
                 int connectionIndex = i - 1;
-                //TCPConnection& connection = m_connections[connectionIndex];
+                TCPConnection& connection = m_connections[connectionIndex];
 
                 if (m_use_fd[i].revents & POLLERR)
                 {
@@ -165,8 +158,8 @@ namespace Network
 
                 if (m_use_fd[i].revents & POLLRDNORM)
                 {
-                    int bytesReceived = m_connections[connectionIndex].Recv();
-                    //std::vector <char>& buffer = connection.m_incommingBuffer;
+                    int bytesReceived = connection.Recv();
+                    std::vector <char>& buffer = connection.m_incommingBuffer;
 
                     if (bytesReceived == 0)
                     {
@@ -186,45 +179,42 @@ namespace Network
 
                     if (bytesReceived > 0)
                     {
-                        if (IsRequestHTML(&m_connections[connectionIndex].m_incommingBuffer[0]))
+                        if (IsRequestHTML(&buffer[0]))
                         {
                             Socket newConnectionSocket;
-                            Endpoint newConnectionEndpoint(GetHostNameFromRequest(&m_connections[connectionIndex].m_incommingBuffer[0]), 80);
+                            Endpoint newConnectionEndpoint(GetHostNameFromRequest(&buffer[0]), 80);
 
                             newConnectionSocket.Create();
                             newConnectionSocket.Connect(newConnectionEndpoint);
 
-                            m_connections.push_back(TCPConnection(newConnectionSocket, newConnectionEndpoint, m_connections[connectionIndex].GetSocket()));
-                            TCPConnection& newConnection = m_connections[m_connections.size() - 1];
+                            TCPConnection newConnection(newConnectionSocket, newConnectionEndpoint);
 
-                            int size = m_connections[connectionIndex].m_incommingBuffer.size();
-                            newConnection.m_outgoingBuffer.resize(size);
-                            memcpy_s(&newConnection.m_outgoingBuffer[0], size, &m_connections[connectionIndex].m_incommingBuffer[0], size);
+                            newConnection.m_outgoingBuffer.resize(buffer.size());
+                            memcpy_s(&newConnection.m_outgoingBuffer[0], buffer.size(), &buffer[0], buffer.size());
 
                             WSAPOLLFD newConnectionFD = {};
                             newConnectionFD.fd = newConnectionSocket.GetHandle();
                             newConnectionFD.events = POLLRDNORM;
                             newConnectionFD.revents = 0;
 
-                            m_master_fd.push_back(newConnectionFD);
-                        }
-                        else if (IsResponseHTML(&m_connections[connectionIndex].m_incommingBuffer[0]))
-                        {
-                            Socket nextSocket = m_connections[connectionIndex].GetNextSocket();
-                            int i;
-                            for (i = 0; i < m_connections.size(); i++)
+                            newConnection.Send();
+
+                            int nbyteReceived;
+                            while (WSAPoll(&newConnectionFD, 1, 1) >= 0)
                             {
-                                if (nextSocket.GetHandle() == m_connections[i].GetSocket().GetHandle())
+                                if (newConnectionFD.revents & POLLRDNORM)
                                 {
+                                    nbyteReceived = newConnection.Recv();
                                     break;
                                 }
+                                continue;
                             }
-                            TCPConnection& nextConnection = m_connections[i];
-                            std::vector <char>& bufferNextConnetion = nextConnection.m_outgoingBuffer;
-                            int size = m_connections[connectionIndex].m_incommingBuffer.size();
-                            bufferNextConnetion.resize(m_connections[connectionIndex].m_incommingBuffer.size());
-                            memcpy_s(&bufferNextConnetion[0], size, &m_connections[connectionIndex].m_incommingBuffer[0], size);
 
+                            std::vector<char>& newBuffer = newConnection.m_incommingBuffer;
+                            connection.m_outgoingBuffer.resize(newBuffer.size());
+                            memcpy_s(&connection.m_outgoingBuffer[0], newBuffer.size(), &newBuffer[0], newBuffer.size());
+
+                            newConnection.Close();
                         }
                         else
                         {
@@ -232,7 +222,7 @@ namespace Network
                             continue;
                         }
 
-                        for (auto const& c : m_connections[connectionIndex].m_incommingBuffer)
+                        for (auto const& c : buffer)
                         {
                             std::cout << c;
                         }
@@ -242,7 +232,7 @@ namespace Network
 
                 if (m_use_fd[i].revents & POLLWRNORM)
                 {
-                    int bytesSent = m_connections[connectionIndex].Send();
+                    connection.Send();
                     m_master_fd[i].events = POLLRDNORM;
                 }
             }

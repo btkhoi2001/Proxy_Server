@@ -2,11 +2,10 @@
 
 namespace Network
 {
-	TCPConnection::TCPConnection(Socket socket, Endpoint endpoint, Socket nextSocket)
+	TCPConnection::TCPConnection(Socket socket, Endpoint endpoint)
 	{
 		m_socket = socket;
 		m_endpoint = endpoint;
-		m_nextSocket = nextSocket;
 	}
 
 	int TCPConnection::Recv()
@@ -40,15 +39,5 @@ namespace Network
 	void TCPConnection::Close()
 	{
 		m_socket.Close();
-	}
-
-	Socket TCPConnection::GetSocket()
-	{
-		return m_socket;
-	}
-
-	Socket TCPConnection::GetNextSocket()
-	{
-		return m_nextSocket;
 	}
 }

@@ -107,12 +107,15 @@ namespace Network
 
 	bool Socket::Connect(Endpoint endpoint)
 	{
+		SetBlocking(true);
 		sockaddr_in addr = endpoint.GetSockaddrIPv4();
-
-		if (connect(m_handle, (sockaddr*)(&addr), sizeof(sockaddr_in)) != 0)
+		int result = connect(m_handle, (sockaddr*)(&addr), sizeof(sockaddr_in));
+		int error = WSAGetLastError();
+		if (result != 0)
 		{
 			return false;
 		}
+		SetBlocking(false);
 
 		return true;
 	}
@@ -149,7 +152,6 @@ namespace Network
 	int Socket::SendAll(const void* data, int numberOfBytes)
 	{
 		int totalBytesSent = 0;
-
 		while (true)
 		{
 			char* bufferOffset = (char*)data + totalBytesSent;

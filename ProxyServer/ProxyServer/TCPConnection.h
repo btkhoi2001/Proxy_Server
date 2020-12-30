@@ -9,15 +9,11 @@ namespace Network
 	private:
 		Endpoint m_endpoint;
 		Socket m_socket;
-		Socket m_nextSocket;
 	public:
-		TCPConnection() {};
-		TCPConnection(Socket socket, Endpoint endpoint, Socket m_nextSocket = Socket());
+		TCPConnection(Socket socket, Endpoint endpoint);
 		int Recv();
 		int Send();
 		void Close();
-		Socket GetSocket();
-		Socket GetNextSocket();
 		std::vector<char> m_incommingBuffer;
 		std::vector<char> m_outgoingBuffer;
 	};
