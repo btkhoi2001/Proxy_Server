@@ -1,4 +1,4 @@
-#include "IPEndpoint.h"
+﻿#include "IPEndpoint.h"
 #include <iostream>
 #include <WS2tcpip.h>
 
@@ -9,6 +9,7 @@ namespace Network
         m_port = port;
         in_addr addr;
 
+        // Kiểm tra địa ip có hợp lệ
         if (inet_pton(AF_INET, ip.c_str(), &addr) == 1)
         {
             if (addr.S_un.S_addr != INADDR_NONE)
@@ -20,6 +21,7 @@ namespace Network
             }
         }
 
+        // Tìm địa chỉ ip bằng hostname
         addrinfo hints = {};
         addrinfo* hostinfo = nullptr;
         hints.ai_family = AF_INET;

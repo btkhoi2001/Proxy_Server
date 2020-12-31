@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #define WIN32_LEAN_AND_MEAN
 #include "IPEndpoint.h"
 #include <WinSock2.h>
@@ -7,6 +7,7 @@
 
 namespace Network
 {
+	// Sử dụng lại các hàm có sẵn
 	class Socket
 	{
 	private:
@@ -24,7 +25,7 @@ namespace Network
 		int Recv(void* dataDestination, int numberOfBytes);
 		int SendAll(const void* data, int numberOfBytes);
 		int RecvAll(void* dataDestination);
-		bool SetBlocking(bool isBlocking);
+		bool SetBlocking(bool isBlocking); 
 		SOCKET GetHandle();
 	};
 }

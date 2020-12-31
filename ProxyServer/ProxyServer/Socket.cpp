@@ -1,4 +1,4 @@
-#include "Socket.h"
+﻿#include "Socket.h"
 
 namespace Network
 {
@@ -107,7 +107,9 @@ namespace Network
 
 	bool Socket::Connect(Endpoint endpoint)
 	{
+		// Cần chuyển socket sang blocking để kết nối
 		SetBlocking(true);
+
 		sockaddr_in addr = endpoint.GetSockaddrIPv4();
 		int result = connect(m_handle, (sockaddr*)(&addr), sizeof(sockaddr_in));
 		int error = WSAGetLastError();
@@ -115,6 +117,8 @@ namespace Network
 		{
 			return false;
 		}
+
+		// Chuyển socket sang non-blocking
 		SetBlocking(false);
 
 		return true;
@@ -154,11 +158,14 @@ namespace Network
 		int totalBytesSent = 0;
 		while (true)
 		{
+			// bufferOffset trỏ đến vị trí đầu tiên chưa gửi của data
 			char* bufferOffset = (char*)data + totalBytesSent;
 			int result = Send(bufferOffset, numberOfBytes - totalBytesSent);
 
 			if (result == SOCKET_ERROR)
 			{
+				// WSAEWOULDBLOCK xảy ra do sử dụng non-blocking socket nên được xử lý riêng, không trả về lỗi
+				// Nếu là lỗi khác thì trả về lỗi
 				int error = WSAGetLastError();
 				if (error != WSAEWOULDBLOCK)
 				{
@@ -185,11 +192,14 @@ namespace Network
 
 		while (true)
 		{
+			// bufferOffset trỏ đến vị trí đầu tiên còn trống của dataDestination
 			char* bufferOffset = (char*)dataDestination + totalBytesReceived;
 			int result = Recv(bufferOffset, 256);
 
 			if (result == SOCKET_ERROR)
 			{
+				// WSAEWOULDBLOCK xảy ra do sử dụng non-blocking socket nên được xử lý riêng, không trả về lỗi
+				// Nếu là lỗi khác thì trả về lỗi
 				int error = WSAGetLastError();
 				if (error != WSAEWOULDBLOCK)
 				{

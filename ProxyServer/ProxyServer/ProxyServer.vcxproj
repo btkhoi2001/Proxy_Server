@@ -153,6 +153,9 @@
     <ClInclude Include="TCPConnection.h" />
     <ClInclude Include="Winsock.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="blacklist.conf" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

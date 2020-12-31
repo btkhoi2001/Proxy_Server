@@ -8,18 +8,21 @@
 
 namespace Network
 {
-	//const char* forbidden = "HTTP/1.1 403 Forbidden\r\n\r\n<HTML>\r\n<BODY>\r\n<H1>403 Forbidden</H1>\r\n<H2>You don't have permission to access this server</H2>\r\n</BODY></HTML>\r\n";
+	extern const char* forbiddenHTML;
+	extern const char* blacklist;
 
 	class ProxyServer
 	{
 	private:
 		Socket m_listeningSocket;
-		std::vector <TCPConnection> m_connections;
+		std::vector <TCPConnection> m_connections; 
 		std::vector <WSAPOLLFD> m_master_fd;
 		std::vector <WSAPOLLFD> m_use_fd;
+		std::vector <std::string> m_blacklist;
+		void LoadBlackList();
+		bool IsAvailableHTML(const void* requestHTML);
+		std::string GetHostnameFromRequest(const void* requestHTML);
 		void CloseConnection(int connectionIndex, std::string reason);
-		bool IsRequestHTML(const void* requestHTML);
-		std::string GetHostNameFromRequest(const void* requestHTML);
 	public:
 		bool Initialize(Endpoint ip);
 		void Frame();

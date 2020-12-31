@@ -1,4 +1,4 @@
-#include "TCPConnection.h"
+﻿#include "TCPConnection.h"
 
 namespace Network
 {
@@ -11,7 +11,7 @@ namespace Network
 	int TCPConnection::Recv()
 	{
 		m_incommingBuffer.clear();
-		std::vector <char> data(1024 * 1024 * 10); // 10Mb
+		std::vector <char> data(1024 * 1024 * 10); // Tối đa 10Mb
 		int bytesReceived = m_socket.RecvAll(&data[0]);
 
 		if (bytesReceived > 0)
