@@ -19,7 +19,6 @@ namespace Network
 		std::vector <WSAPOLLFD> m_use_fd;
 		void CloseConnection(int connectionIndex, std::string reason);
 		bool IsRequestHTML(const void* requestHTML);
-		bool IsResponseHTML(const void* requestHTML);
 		std::string GetHostNameFromRequest(const void* requestHTML);
 	public:
 		bool Initialize(Endpoint ip);

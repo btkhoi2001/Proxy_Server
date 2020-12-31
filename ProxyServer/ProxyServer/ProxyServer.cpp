@@ -1,16 +1,18 @@
 #include "ProxyServer.h"
 #include <iostream>
 #include <sstream>
+#include <fstream>
 
 namespace Network
 {
     void ProxyServer::CloseConnection(int connectionIndex, std::string reason)
     {
-        TCPConnection& connectionSocket = m_connections[connectionIndex];
-        //std::cout << "[" << reason << "] Connection lost." << std::endl;
+#ifdef _DEBUG
+        std::cout << "[" << reason << "] Connection lost."<< std::endl;
+#endif
+        TCPConnection& connection = m_connections[connectionIndex];
+        connection.Close();
         m_master_fd.erase(m_master_fd.begin() + connectionIndex + 1);
-        m_use_fd.erase(m_use_fd.begin() + connectionIndex + 1);
-        connectionSocket.Close();
         m_connections.erase(m_connections.begin() + connectionIndex);
     }
 
@@ -19,18 +21,6 @@ namespace Network
         std::string method((const char*)requestHTML, 4);
 
         if (method.substr(0, 3) != "GET" && method != "POST")
-        {
-            return false;
-        }
-
-        return true;;
-    }
-
-    bool ProxyServer::IsResponseHTML(const void* requestHTML)
-    {
-        std::string method((const char*)requestHTML, 4);
-
-        if (method != "HTTP")
         {
             return false;
         }
@@ -68,7 +58,7 @@ namespace Network
         if (m_listeningSocket.Create())
         {
             std::cout << "Socket successfully created." << std::endl;
-            if (m_listeningSocket.Listen(ip))
+            if (m_listeningSocket.Listen(ip, 10))
             {
                 WSAPOLLFD listeningSocketFD = {};
                 listeningSocketFD.fd = m_listeningSocket.GetHandle();
@@ -105,7 +95,7 @@ namespace Network
 
         m_use_fd = m_master_fd;
 
-        if (WSAPoll(m_use_fd.data(), m_use_fd.size(), 1) > 0)
+        if (WSAPoll(m_use_fd.data(), m_use_fd.size(), -1) > 0)
         {
 #pragma region listener
             WSAPOLLFD& listeningSocketFD = m_use_fd[0];
@@ -159,7 +149,8 @@ namespace Network
                 if (m_use_fd[i].revents & POLLRDNORM)
                 {
                     int bytesReceived = connection.Recv();
-                    std::vector <char>& buffer = connection.m_incommingBuffer;
+                    std::vector <char>& inBuffer = connection.m_incommingBuffer;
+                    std::vector <char>& outBuffer = connection.m_outgoingBuffer;
 
                     if (bytesReceived == 0)
                     {
@@ -179,41 +170,85 @@ namespace Network
 
                     if (bytesReceived > 0)
                     {
-                        if (IsRequestHTML(&buffer[0]))
+                        if (IsRequestHTML(&inBuffer[0]))
                         {
+#ifdef _DEBUG
+                            std::cout << "HTTP request method:" << std::endl;
+                            for (auto const& c : inBuffer)
+                            {
+                                std::cout << c;
+                            }
+#endif
+
                             Socket newConnectionSocket;
-                            Endpoint newConnectionEndpoint(GetHostNameFromRequest(&buffer[0]), 80);
+                            Endpoint newConnectionEndpoint(GetHostNameFromRequest(&inBuffer[0]), 80);
 
                             newConnectionSocket.Create();
                             newConnectionSocket.Connect(newConnectionEndpoint);
 
                             TCPConnection newConnection(newConnectionSocket, newConnectionEndpoint);
+                            std::vector <char>& n_inBuffer = newConnection.m_incommingBuffer;
+                            std::vector <char>& n_outBuffer = newConnection.m_outgoingBuffer;
 
-                            newConnection.m_outgoingBuffer.resize(buffer.size());
-                            memcpy_s(&newConnection.m_outgoingBuffer[0], buffer.size(), &buffer[0], buffer.size());
+                            n_outBuffer.resize(bytesReceived);
+                            memcpy_s(&n_outBuffer[0], bytesReceived, &inBuffer[0], bytesReceived);
+
 
                             WSAPOLLFD newConnectionFD = {};
                             newConnectionFD.fd = newConnectionSocket.GetHandle();
-                            newConnectionFD.events = POLLRDNORM;
+                            newConnectionFD.events = POLLRDNORM | POLLWRNORM;
                             newConnectionFD.revents = 0;
 
-                            newConnection.Send();
-
-                            int nbyteReceived;
-                            while (WSAPoll(&newConnectionFD, 1, 1) >= 0)
+                            while (WSAPoll(&newConnectionFD, 1, 1000) > 0)
                             {
-                                if (newConnectionFD.revents & POLLRDNORM)
+                                if (newConnectionFD.revents & POLLERR || newConnectionFD.revents & POLLHUP || newConnectionFD.revents & POLLNVAL)
                                 {
-                                    nbyteReceived = newConnection.Recv();
                                     break;
                                 }
-                                continue;
+
+                                if (newConnectionFD.revents & POLLRDNORM)
+                                {
+                                    int n_bytesReceived = newConnection.Recv();
+
+                                    if (n_bytesReceived == 0)
+                                    {
+                                        break;
+                                    }
+
+                                    if (n_bytesReceived == SOCKET_ERROR)
+                                    {
+                                        int error = WSAGetLastError();
+                                        if (error != WSAEWOULDBLOCK)
+                                        {
+                                            break;
+                                        }
+                                    }
+
+                                    if (n_bytesReceived > 0)
+                                    {
+                                        int connectionSize = outBuffer.size();
+                                        outBuffer.resize(connectionSize + n_bytesReceived);
+                                        memcpy_s(&outBuffer[0] + connectionSize, n_bytesReceived, &n_inBuffer[0], n_bytesReceived);
+                                    }
+
+#ifdef _DEBUG
+                                    std::cout << "HTTP response:" << std::endl;
+                                    for (auto const& c : n_inBuffer)
+                                    {
+                                        std::cout << c;
+                                    }
+#endif
+                                }
+
+                                if (newConnectionFD.revents & POLLWRNORM)
+                                {
+                                    while (!n_outBuffer.empty())
+                                    {
+                                        newConnection.Send();
+                                    }
+                                    newConnectionFD.events = POLLRDNORM;
+                                }
                             }
-
-                            std::vector<char>& newBuffer = newConnection.m_incommingBuffer;
-                            connection.m_outgoingBuffer.resize(newBuffer.size());
-                            memcpy_s(&connection.m_outgoingBuffer[0], newBuffer.size(), &newBuffer[0], newBuffer.size());
-
                             newConnection.Close();
                         }
                         else
@@ -221,18 +256,15 @@ namespace Network
                             CloseConnection(connectionIndex, "InvalidMethod");
                             continue;
                         }
-
-                        for (auto const& c : buffer)
-                        {
-                            std::cout << c;
-                        }
                     }
-
                 }
 
                 if (m_use_fd[i].revents & POLLWRNORM)
                 {
-                    connection.Send();
+                    while (!connection.m_outgoingBuffer.empty())
+                    {
+                        connection.Send();
+                    }
                     m_master_fd[i].events = POLLRDNORM;
                 }
             }

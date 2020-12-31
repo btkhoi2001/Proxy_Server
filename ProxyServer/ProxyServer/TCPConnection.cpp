@@ -11,14 +11,9 @@ namespace Network
 	int TCPConnection::Recv()
 	{
 		m_incommingBuffer.clear();
-		std::vector <char> data(1024 * 1024 * 10);
+		std::vector <char> data(1024 * 1024 * 10); // 10Mb
 		int bytesReceived = m_socket.RecvAll(&data[0]);
-		//for (int i = data.size() - 1; i >= 0; i--)
-		//{
-		//	if (data[i] == '\0') {
-		//		data.erase(data.begin() + i);
-		//	}
-		//}
+
 		if (bytesReceived > 0)
 		{
 			m_incommingBuffer.resize(bytesReceived);
