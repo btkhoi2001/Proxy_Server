@@ -10,6 +10,7 @@ namespace Network
 {
 	extern const char* forbiddenHTML;
 	extern const char* blacklist;
+	extern const char* crlf2;
 
 	class ProxyServer
 	{

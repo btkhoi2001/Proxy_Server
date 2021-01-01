@@ -2,11 +2,13 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <algorithm>
 
 namespace Network
 {
     const char* forbiddenHTML = "HTTP/1.1 403 Forbidden\r\n\r\n<HTML>\r\n<BODY>\r\n<H1>403 Forbidden</H1>\r\n<H2>You don't have permission to access this server</H2>\r\n</BODY></HTML>\r\n";
     const char* blacklist = "blacklist.conf";
+    const char* crlf2 = "\r\n\r\n";
 
     void ProxyServer::LoadBlackList()
     {
@@ -127,6 +129,8 @@ namespace Network
             {
                 int connectionIndex = i - 1;
                 TCPConnection& connection = m_connections[connectionIndex];
+                std::vector <char>& inBuffer = connection.m_incommingBuffer;
+                std::vector <char>& outBuffer = connection.m_outgoingBuffer;
 
                 // Có lỗi xảy ra
                 if (m_use_fd[i].revents & POLLERR)
@@ -154,8 +158,6 @@ namespace Network
                 if (m_use_fd[i].revents & POLLRDNORM)
                 {
                     int bytesReceived = connection.Recv();
-                    std::vector <char>& inBuffer = connection.m_incommingBuffer;
-                    std::vector <char>& outBuffer = connection.m_outgoingBuffer;
 
                     // Mất kết nối
                     // Không nhận được dữ liệu
@@ -200,10 +202,13 @@ namespace Network
 
 #ifdef _DEBUG
                             std::cout << "HTTP request method:" << std::endl;
-                            for (auto const& c : inBuffer)
+                            auto itBody = std::search(inBuffer.begin(), inBuffer.end(), crlf2, crlf2 + strlen(crlf2));
+
+                            for (auto it = inBuffer.begin(); it != itBody; it++)
                             {
-                                std::cout << c;
+                                std::cout << *it;
                             }
+                            std::cout << "\r\n\r\n";
 #endif 
                             // Tạo kết nối mới đến web server
                             Socket newConnectionSocket;
@@ -264,13 +269,6 @@ namespace Network
                                     // Nếu nhận được dữ liệu (response)
                                     if (n_bytesReceived > 0)
                                     {
-#ifdef _DEBUG
-                                        std::cout << "HTTP response:" << std::endl;
-                                        for (auto const& c : n_inBuffer)
-                                        {
-                                            std::cout << c;
-                                        }
-#endif
                                         // Copy response vào outgoingBuffer của kết nối đến web browser
                                         int connectionSize = outBuffer.size();
                                         outBuffer.resize(connectionSize + n_bytesReceived);
@@ -306,7 +304,18 @@ namespace Network
                 // Proxy server -> Web browser
                 if (m_use_fd[i].revents & POLLWRNORM)
                 {
-                    while (!connection.m_outgoingBuffer.empty())
+#ifdef _DEBUG
+                    std::cout << "HTTP response:" << std::endl; 
+                    auto itBody = std::search(outBuffer.begin(), outBuffer.end(), crlf2, crlf2 + strlen(crlf2));
+
+                    for (auto it = outBuffer.begin(); it != itBody; it++)
+                    {
+                        std::cout << *it;
+                    }
+                    std::cout << "\r\n\r\n";
+#endif
+
+                    while (!outBuffer.empty())
                     {
                         connection.Send();
                     }
@@ -353,7 +362,7 @@ namespace Network
 
     void ProxyServer::CloseConnection(int connectionIndex, std::string reason)
     {
-        std::cout << "[" << reason << "] Connection lost." << std::endl;
+        //std::cout << "[" << reason << "] Connection lost." << std::endl;
         TCPConnection& connection = m_connections[connectionIndex];
         connection.Close();
         m_master_fd.erase(m_master_fd.begin() + connectionIndex + 1);
