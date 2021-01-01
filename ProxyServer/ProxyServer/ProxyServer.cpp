@@ -362,7 +362,7 @@ namespace Network
 
     void ProxyServer::CloseConnection(int connectionIndex, std::string reason)
     {
-        //std::cout << "[" << reason << "] Connection lost." << std::endl;
+        std::cout << "[" << reason << "] Connection lost." << std::endl;
         TCPConnection& connection = m_connections[connectionIndex];
         connection.Close();
         m_master_fd.erase(m_master_fd.begin() + connectionIndex + 1);
