@@ -29,6 +29,19 @@ namespace Network
         fileInput.close();
     }
 
+    bool ProxyServer::IsBlacklisted(std::string hostname)
+    {
+        for (int i = 0; i < m_blacklist.size(); i++)
+        {
+            if (m_blacklist[i].find(hostname) != std::string::npos)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     bool ProxyServer::Initialize(Endpoint ip)
     {
         LoadBlackList();
@@ -65,7 +78,6 @@ namespace Network
         return false;
     }
 
-    // 
     void ProxyServer::Frame()
     {
         // Nếu outgoingBuffer chứa dữ liệu thì set thêm flag POLLWRNORM cho socket đó
@@ -174,7 +186,7 @@ namespace Network
                         {
                             // Kiểm tra hostname có trong blacklist
                             std::string hostname = GetHostnameFromRequest(&inBuffer[0]);
-                            if (std::find(m_blacklist.begin(), m_blacklist.end(), hostname) != m_blacklist.end())
+                            if (IsBlacklisted(hostname))
                             {
                                 outBuffer.resize(strlen(forbiddenHTML));
                                 memcpy_s(&outBuffer[0], outBuffer.size(), forbiddenHTML, strlen(forbiddenHTML));
